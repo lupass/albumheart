@@ -54,12 +54,16 @@ async function loadDrivePhotos() {
   try {
     showToast("Cargando recuerdos de Drive...");
     const resp = await fetch(DRIVE_FEED_URL, { method: 'GET' });
-    const result = await resp.json();
+    const text = await resp.text();
+    console.log('Drive raw response:', text);
+    let result;
+    try { result = JSON.parse(text); } catch { result = { success: false, error: 'Respuesta inválida' }; }
     if (result.success && result.photos) {
       photos = result.photos;
       showToast(`${photos.length} recuerdos cargados`);
     } else {
-      showToast("No hay fotos en Drive aún");
+      console.error('Drive error:', result.error);
+      showToast(`Error: ${result.error || 'No hay fotos'}`);
       photos = [];
     }
   } catch (err) {
@@ -330,13 +334,36 @@ function updateLightbox() {
   const caption = document.querySelector("#lightboxCaption");
   const number = document.querySelector("#lightboxNumber");
 
-  // Prioridad: localPreview (inmediato) > fullUrl > thumbUrl > url > src
-  const displayUrl = photo.localPreview || photo.fullUrl || photo.thumbUrl || photo.url || photo.src;
+  // Prioridad: localPreview > thumbUrl grande > fullUrl > url > src
+  // Usamos thumbUrl con sz=w2000 para imagen grande (más fiable que uc?export=view)
+  const thumbLarge = photo.thumbUrl ? photo.thumbUrl.replace(/sz=w\d+/, 'sz=w2000') : null;
+  const displayUrl = photo.localPreview || thumbLarge || photo.fullUrl || photo.url || photo.thumbUrl || photo.url || photo.src;
 
   img.src = displayUrl;
   img.alt = photo.alt || photo.name;
   caption.textContent = photo.name;
   number.textContent = `${String(lightboxIndex + 1).padStart(2, "0")} / ${String(photos.length).padStart(2, "0")}`;
+
+  // Error handling para la imagen del lightbox
+  img.onerror = () => {
+    // Fallback chain: thumbUrl original > fullUrl > url
+    const fallbacks = [
+      photo.thumbUrl,
+      photo.fullUrl,
+      photo.url
+    ].filter(Boolean);
+    let fallbackIndex = 0;
+    const tryFallback = () => {
+      if (fallbackIndex < fallbacks.length) {
+        img.src = fallbacks[fallbackIndex++];
+      } else {
+        img.alt = "No se pudo cargar la imagen";
+        img.style.display = "none";
+      }
+    };
+    img.onload = null; // avoid loop
+    tryFallback();
+  };
 
   // Si es subida fresca, mostrar indicador
   const existingBadge = document.querySelector(".lightbox-fresh-badge");
