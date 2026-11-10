@@ -21,16 +21,8 @@ function isNightMode() {
   return hour >= 19 || hour < 7;
 }
 
-const demoPhotos = [
-  { id: "demo-1", name: "Colinas quietas", category: "places", date: "RECUERDO 001", src: makeArt("hills", isNightMode()), alt: "Colinas al atardecer" },
-  { id: "demo-2", name: "Un pequeño ensueño", category: "moments", date: "RECUERDO 002", src: makeArt("dream", isNightMode()), alt: "Cielo de ensueño" },
-  { id: "demo-3", name: "Junto al agua", category: "places", date: "RECUERDO 003", src: makeArt("water", isNightMode()), alt: "Lago tranquilo" },
-  { id: "demo-4", name: "Nuestro caos", category: "friends", date: "RECUERDO 004", src: makeArt("friends", isNightMode()), alt: "Recuerdo con amigos" },
-  { id: "demo-5", name: "Hora dorada", category: "moments", date: "RECUERDO 005", src: makeArt("gold", isNightMode()), alt: "Luz dorada" },
-  { id: "demo-6", name: "Un lugar suave", category: "places", date: "RECUERDO 006", src: makeArt("soft", isNightMode()), alt: "Paisaje pastel" }
-];
-
-let photos = [...demoPhotos];
+// Array VACÍO al inicio - se carga de Drive
+let photos = [];
 let activeFilter = "all";
 let lightboxIndex = 0;
 let toastTimer;
@@ -38,6 +30,27 @@ let toastTimer;
 const gallery = document.querySelector("#gallery");
 const fileInput = document.querySelector("#fileInput");
 const lightbox = document.querySelector("#lightbox");
+
+// Cargar fotos de Drive al iniciar
+async function loadDrivePhotos() {
+  try {
+    showToast("Cargando recuerdos de Drive...");
+    const resp = await fetch(DRIVE_FEED_URL, { method: 'GET' });
+    const result = await resp.json();
+    if (result.success && result.photos) {
+      photos = result.photos;
+      showToast(`${photos.length} recuerdos cargados`);
+    } else {
+      showToast("No hay fotos en Drive aún");
+      photos = [];
+    }
+  } catch (err) {
+    console.error('Error cargando Drive:', err);
+    showToast("Error conectando con Drive");
+    photos = [];
+  }
+  renderGallery();
+}
 
 function makeArt(type, isNight = false) {
   const dayScenes = {
@@ -64,11 +77,7 @@ function makeArt(type, isNight = false) {
 }
 
 function renderGallery() {
-  const query = document.querySelector("#searchInput").value.trim().toLowerCase();
-  const visible = photos.filter(photo =>
-    (activeFilter === "all" || photo.category === activeFilter) &&
-    (!query || photo.name.toLowerCase().includes(query))
-  );
+  const visible = photos; // Sin filtro de búsqueda
 
   document.querySelector("#photoCount").textContent =
     `${String(visible.length).padStart(2, "0")} RECUERDOS`;
@@ -79,14 +88,19 @@ function renderGallery() {
   }
 
   gallery.innerHTML = visible.map((photo) => {
-  const index = photos.indexOf(photo);
-  const fileId = photo.id;
-  // Fallback: url (Drive thumbnail) -> src (demo SVG) -> placeholder
-  const thumbUrl = photo.url || photo.src || `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect fill="%23ffe8cc" width="400" height="300"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="system-ui" fill="%23999" font-size="14">${escapeAttr(photo.name)}</text></svg>`;
-  return `
-    <article class="photo-card" tabindex="0" role="button" data-index="${index}" data-id="${fileId}" aria-label="Abrir ${escapeHtml(photo.name)}">
+    const index = photos.indexOf(photo);
+    const fileId = photo.id;
+    // Prioridad: localPreview (inmediato) > thumbUrl > url > src
+    const thumbUrl = photo.localPreview || photo.thumbUrl || photo.url || photo.src;
+    const fullUrl = photo.localPreview || photo.fullUrl || photo.thumbUrl || photo.url || photo.src;
+    const isFresh = photo.isFreshUpload;
+    return `
+    <article class="photo-card${isFresh ? ' fresh-upload' : ''}" tabindex="0" role="button" data-index="${index}" data-id="${fileId}" aria-label="Abrir ${escapeHtml(photo.name)}">
       <span class="card-tag">${escapeHtml(photo.category.toUpperCase())}</span>
-      <img src="${escapeAttr(thumbUrl)}" alt="${escapeAttr(photo.alt || photo.name)}" loading="lazy">
+      <div class="photo-frame">
+        <div class="photo-skeleton" aria-hidden="true"></div>
+        <img src="${escapeAttr(thumbUrl)}" alt="" loading="lazy" data-full="${escapeAttr(fullUrl)}" class="photo-img">
+      </div>
       <div class="card-caption">
         <strong>${escapeHtml(photo.name)}</strong>
         <small>${escapeHtml(photo.date || "A MEMORY")}</small>
@@ -96,7 +110,7 @@ function renderGallery() {
         <button class="icon-btn delete" data-action="delete" title="Eliminar" aria-label="Eliminar">🗑️</button>
       </div>
     </article>`;
-}).join("");
+  }).join("");
 
   gallery.querySelectorAll(".photo-card").forEach(card => {
     card.addEventListener("click", () => openLightbox(Number(card.dataset.index)));
@@ -108,21 +122,40 @@ function renderGallery() {
     });
   });
 
+  // Lazy-load handling: hide skeleton when image loads, show icon on error
+  gallery.querySelectorAll(".photo-img").forEach(img => {
+    img.addEventListener("load", () => {
+      img.classList.add("loaded");
+      const skeleton = img.parentElement.querySelector(".photo-skeleton");
+      if (skeleton) skeleton.style.display = "none";
+    });
+    img.addEventListener("error", () => {
+      img.style.display = "none";
+      const skeleton = img.parentElement.querySelector(".photo-skeleton");
+      if (skeleton) {
+        skeleton.innerHTML = '<span class="photo-error-icon" aria-hidden="true">🖼️</span>';
+        skeleton.style.display = "flex";
+      }
+    });
+    // Trigger load check for cached images
+    if (img.complete) img.dispatchEvent(new Event("load"));
+  });
+
   // Delegación de eventos para botones dinámicos
-gallery.addEventListener('click', e => {
-  const btn = e.target.closest('.icon-btn');
-  if (!btn) return;
-  e.stopPropagation(); // no abrir lightbox
-  const card = btn.closest('.photo-card');
-  const photoId = card.dataset.id;
-  const idx = Number(card.dataset.index);
-  const photo = photos[idx];
-  if (btn.dataset.action === 'delete') {
-    deletePhoto(photoId, photoId);
-  } else if (btn.dataset.action === 'rename') {
-    renamePhoto(photoId, photoId, photo.name);
-  }
-});
+  gallery.addEventListener('click', e => {
+    const btn = e.target.closest('.icon-btn');
+    if (!btn) return;
+    e.stopPropagation(); // no abrir lightbox
+    const card = btn.closest('.photo-card');
+    const photoId = card.dataset.id;
+    const idx = Number(card.dataset.index);
+    const photo = photos[idx];
+    if (btn.dataset.action === 'delete') {
+      deletePhoto(photoId, photoId);
+    } else if (btn.dataset.action === 'rename') {
+      renamePhoto(photoId, photoId, photo.name);
+    }
+  });
 
 }
 
@@ -152,9 +185,18 @@ async function addFiles(fileList) {
       const result = await resp.json();
       console.log('Upload response:', result);
       if (result.success) {
-        photos.unshift(result.photo);
+        // Guardar base64 local para vista INMEDIATA mientras Drive procesa
+        const photoWithPreview = {
+          ...result.photo,
+          localPreview: base64,  // ← Vista instantánea
+          isFreshUpload: true
+        };
+        photos.unshift(photoWithPreview);
         showToast(`✅ "${result.photo.name}" guardado en Drive`);
         renderGallery();
+
+        // Reintentar cargar URL de Drive cada 3s hasta que funcione (max 2 min)
+        retryDriveUrl(result.photo.id, base64, 0);
       } else {
         showToast(`❌ Error: ${result.error}`);
       }
@@ -163,6 +205,25 @@ async function addFiles(fileList) {
       showToast(`❌ Error de red: ${err.message}`);
     }
   }
+}
+
+// Reintenta la URL de Drive hasta que responda 200
+function retryDriveUrl(fileId, localBase64, attempts) {
+  if (attempts > 40) return; // 2 minutos max (40 * 3s)
+
+  const testUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+  const img = new Image();
+  img.onload = () => {
+    // Drive listo - actualizar foto quitando localPreview
+    const idx = photos.findIndex(p => p.id === fileId);
+    if (idx !== -1) {
+      delete photos[idx].localPreview;
+      delete photos[idx].isFreshUpload;
+      renderGallery();
+    }
+  };
+  img.onerror = () => setTimeout(() => retryDriveUrl(fileId, localBase64, attempts + 1), 3000);
+  img.src = testUrl;
 }
 
 function readFileAsBase64(file) {
@@ -176,7 +237,7 @@ function readFileAsBase64(file) {
 
 async function deletePhoto(photoId, fileId) {
   if (!confirm('¿Borrar esta foto de Drive y de la galería?')) return;
-  
+
   // Si es foto demo (id empieza con "demo-"), solo quitar localmente
   if (photoId.startsWith('demo-')) {
     photos = photos.filter(p => p.id !== photoId);
@@ -184,7 +245,7 @@ async function deletePhoto(photoId, fileId) {
     renderGallery();
     return;
   }
-  
+
   try {
     const resp = await fetch(DRIVE_FEED_URL, {
       method: 'POST',
@@ -207,7 +268,7 @@ async function deletePhoto(photoId, fileId) {
 async function renamePhoto(photoId, fileId, currentName) {
   const newName = prompt('Nuevo nombre:', currentName);
   if (!newName || newName === currentName) return;
-  
+
   // Si es foto demo, solo renombrar localmente
   if (photoId.startsWith('demo-')) {
     const idx = photos.findIndex(p => p.id === photoId);
@@ -219,7 +280,7 @@ async function renamePhoto(photoId, fileId, currentName) {
     }
     return;
   }
-  
+
   try {
     const resp = await fetch(DRIVE_FEED_URL, {
       method: 'POST',
@@ -250,12 +311,55 @@ function openLightbox(index) {
 function updateLightbox() {
   const photo = photos[lightboxIndex];
   if (!photo) return;
-  // Usar fullUrl (imagen original) si existe, sino src (thumbnail/demo)
-  document.querySelector("#lightboxImage").src = photo.fullUrl || photo.src;
-  document.querySelector("#lightboxImage").alt = photo.alt || photo.name;
-  document.querySelector("#lightboxCaption").textContent = photo.name;
-  document.querySelector("#lightboxNumber").textContent =
-    `${String(lightboxIndex + 1).padStart(2, "0")} / ${String(photos.length).padStart(2, "0")}`;
+
+  const img = document.querySelector("#lightboxImage");
+  const caption = document.querySelector("#lightboxCaption");
+  const number = document.querySelector("#lightboxNumber");
+
+  // Prioridad: localPreview (inmediato) > fullUrl > thumbUrl > url > src
+  const displayUrl = photo.localPreview || photo.fullUrl || photo.thumbUrl || photo.url || photo.src;
+
+  img.src = displayUrl;
+  img.alt = photo.alt || photo.name;
+  caption.textContent = photo.name;
+  number.textContent = `${String(lightboxIndex + 1).padStart(2, "0")} / ${String(photos.length).padStart(2, "0")}`;
+
+  // Si es subida fresca, mostrar indicador
+  const existingBadge = document.querySelector(".lightbox-fresh-badge");
+  if (existingBadge) existingBadge.remove();
+
+  if (photo.isFreshUpload) {
+    const badge = document.createElement("span");
+    badge.className = "lightbox-fresh-badge";
+    badge.textContent = "Cargando versión completa...";
+    badge.style.cssText = "position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.7);color:#fff;padding:6px 12px;border-radius:20px;font-size:12px;z-index:10";
+    img.parentElement.style.position = "relative";
+    img.parentElement.appendChild(badge);
+
+    // Reintento automático cuando Drive esté listo
+    retryLightboxImage(photo.id, displayUrl);
+  }
+}
+
+// Reintenta la imagen en lightbox hasta que cargue
+function retryLightboxImage(fileId, localPreview) {
+  const img = document.querySelector("#lightboxImage");
+  const badge = document.querySelector(".lightbox-fresh-badge");
+  const testUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+
+  const testImg = new Image();
+  testImg.onload = () => {
+    img.src = testUrl;
+    if (badge) badge.remove();
+    // Actualizar array photos
+    const idx = photos.findIndex(p => p.id === fileId);
+    if (idx !== -1) {
+      delete photos[idx].localPreview;
+      delete photos[idx].isFreshUpload;
+    }
+  };
+  testImg.onerror = () => setTimeout(() => retryLightboxImage(fileId, localPreview), 3000);
+  testImg.src = testUrl;
 }
 function closeLightbox() {
   lightbox.classList.remove("open");
@@ -279,15 +383,7 @@ fileInput.addEventListener("change", event => {
   addFiles(event.target.files);
   fileInput.value = "";
 });
-document.querySelectorAll(".filter").forEach(button => {
-  button.addEventListener("click", () => {
-    document.querySelector(".filter.active")?.classList.remove("active");
-    button.classList.add("active");
-    activeFilter = button.dataset.filter;
-    renderGallery();
-  });
-});
-document.querySelector("#searchInput").addEventListener("input", renderGallery);
+
 document.querySelector("#lightboxClose").addEventListener("click", closeLightbox);
 document.querySelector("#lightboxPrev").addEventListener("click", () => moveLightbox(-1));
 document.querySelector("#lightboxNext").addEventListener("click", () => moveLightbox(1));
@@ -309,13 +405,14 @@ function setSky(mode, announce = false) {
   document.querySelector("#moodButton .mood-icon").textContent = night ? "☾" : "☼";
   document.querySelector("#moodButton span:last-child").textContent = night ? "MODO NOCHE" : "MODO DÍA";
   if (announce) showToast(night ? "Modo noche activado." : "Modo día activado.");
-  // Refresh demo photo placeholders
+  // Refresh demo photo placeholders (only for SVG placeholders)
   refreshDemoPhotos(night);
 }
 function refreshDemoPhotos(night) {
   photos.forEach((photo, i) => {
-    if (demoPhotos[i] && photo.src.startsWith("data:image/svg")) {
-      const type = ["hills","dream","water","friends","gold","soft"][i] || "hills";
+    // Solo actualizar placeholders SVG generados con makeArt
+    if (photo.src && photo.src.startsWith("data:image/svg")) {
+      const type = ["hills", "dream", "water", "friends", "gold", "soft"][i] || "hills";
       photo.src = makeArt(type, night);
     }
   });
@@ -394,6 +491,7 @@ function createFloatingParticles() {
   }
 }
 createFloatingParticles();
+loadDrivePhotos();
 applyAutomaticSky();
 setInterval(applyAutomaticSky, 5 * 60 * 1000);
 
