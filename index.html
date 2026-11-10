@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f0fb">
+  <meta name="description" content="Un pequeño universo para guardar recuerdos de Heartopia.">
+  <title>Heartopia — Memory Garden</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Nunito:wght@400;500;600;700;800&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+  <div class="grain"></div>
+  <div class="floating-particles" id="floatingParticles" aria-hidden="true"></div>
+  <div class="shooting-star" aria-hidden="true"></div>
+  <div class="shooting-star" aria-hidden="true"></div>
+  <div class="shooting-star" aria-hidden="true"></div>
+
+  <header class="masthead">
+    <a class="wordmark" href="#" aria-label="Heartopia Memory Garden, inicio">
+      <span class="wordmark-symbol">✳</span>
+      <span>HEARTOPIA <i>MEMORY GARDEN</i></span>
+    </a>
+    <div class="edition"><span class="live-dot"></span> ATLAS PERSONAL DE FOTOS <span class="edition-no">VOL. 01</span></div>
+    <button class="sound-toggle" id="moodButton" type="button" aria-pressed="false">
+      <span class="mood-icon">☼</span><span>CAMBIAR ÁNIMO</span>
+    </button>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="heroTitle">
+      <div class="hero-copy">
+        <p class="eyebrow"><span>✦</span> UN ARCHIVO DE PEQUEÑOS INSTANTES</p>
+        <h1 id="heroTitle">En algún lugar<br>de <em>Heartopia.</em></h1>
+        <p class="hero-intro">Un lugar para guardar los días bonitos, los rincones secretos y las aventuras que merecen quedarse un poquito más.</p>
+        <div class="hero-actions">
+          <a class="pill-button dark" href="#atlas">Explorar recuerdos <span>↘</span></a>
+          <button class="text-button" id="uploadTrigger" type="button">＋ Añadir fotografías</button>
+          <input id="fileInput" type="file" accept="image/*" multiple hidden>
+        </div>
+      </div>
+
+      <div class="hero-art" aria-label="Composición decorativa de recuerdos">
+        <div class="orbit orbit-a"></div><div class="orbit orbit-b"></div>
+        <span class="spark spark-a">✳</span><span class="spark spark-b">✧</span>
+        <div class="sun-disc"></div>
+        <div class="hero-photo photo-back">
+          <div class="photo-placeholder placeholder-hills"><span>TU<br>MUNDO</span></div>
+          <small>FIG. 01 — COLINAS QUIETAS</small>
+        </div>
+        <div class="hero-photo photo-front">
+          <div class="photo-placeholder placeholder-lake"><span class="tiny-stamp">DÍA<br>♡ 028</span></div>
+          <small>UN LUGAR PARA RESPIRAR <b>↗</b></small>
+        </div>
+        <div class="floating-note">coleccionando<br><i>pequeñas alegrías</i> <span>♡</span></div>
+      </div>
+      <div class="hero-bottomline"><span>Una colección sin fin</span><span>Hecha de momentos, no de hitos</span><span>Desliza para explorar ↓</span></div>
+    </section>
+
+    <section class="atlas-section" id="atlas">
+      <div class="section-heading">
+        <div><p class="eyebrow">01 / LA COLECCIÓN</p><h2>Un <em>álbum vivo.</em></h2></div>
+        <p class="section-aside">Cada imagen es una pequeña ventana.<br>Entra, pasea y vuelve cuando quieras.</p>
+      </div>
+
+      <div class="control-deck">
+        <div class="filter-tabs" role="group" aria-label="Filtrar fotografías">
+          <button class="filter active" data-filter="all">Todo <sup>✳</sup></button>
+          <button class="filter" data-filter="places">Lugares</button>
+          <button class="filter" data-filter="moments">Momentos</button>
+          <button class="filter" data-filter="friends">Amigos</button>
+        </div>
+        <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Buscar un recuerdo…" aria-label="Buscar un recuerdo"></label>
+      </div>
+
+      <div class="gallery-meta"><span id="photoCount">06 RECUERDOS</span></div>
+      <div class="gallery" id="gallery" aria-live="polite">
+        <!-- Las tarjetas se generan desde app.js -->
+      </div>
+      <div class="drop-hint" id="dropHint"><span>✧</span> Suelta tus recuerdos aquí para añadirlos al jardín</div>
+    </section>
+
+    <section class="interlude">
+      <div class="interlude-mark">“</div>
+      <p>Hay lugares que visitamos.<br>Y lugares que <em>se quedan con nosotros.</em></p>
+      <span>— NOTAS DESDE HEARTOPIA</span>
+      <div class="interlude-flower">✿</div>
+    </section>
+
+    <section class="field-notes">
+      <div class="field-title"><p class="eyebrow">02 / NOTAS DE CAMPO</p><h2>Pequeñas cosas<br><em>para recordar.</em></h2></div>
+      <div class="note-card note-yellow"><span class="note-pin"></span><small>NOTA Nº 01</small><p>La luz de las tardes<br>en nuestro rincón<br>favorito.</p><span class="note-doodle">☼</span></div>
+      <div class="note-card note-pink"><span class="note-pin"></span><small>NOTA Nº 02</small><p>No hace falta un plan<br>cuando la compañía<br>es la correcta.</p><span class="note-doodle">♡</span></div>
+      <div class="field-caption">UN SUAVE RECUERDO PARA VER LA MAGIA.</div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-flower">✳</div>
+    <p>Hecho de pixeles, pétalos<br>y <em>buenos recuerdos.</em></p>
+    <div class="footer-bottom"><span>HEARTOPIA MEMORY GARDEN</span><span>SIGUE EXPLORANDO <b>↗</b></span></div>
+  </footer>
+
+  <div class="lightbox" id="lightbox" aria-hidden="true">
+    <button class="lightbox-close" id="lightboxClose" aria-label="Cerrar">×</button>
+    <button class="lightbox-prev" id="lightboxPrev" aria-label="Imagen anterior">←</button>
+    <figure><img id="lightboxImage" alt=""><figcaption><span id="lightboxCaption"></span><small id="lightboxNumber"></small></figcaption></figure>
+    <button class="lightbox-next" id="lightboxNext" aria-label="Imagen siguiente">→</button>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
