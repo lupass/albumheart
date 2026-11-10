@@ -14,7 +14,7 @@
   No se suben a Google Drive automáticamente.
 */
 
-const DRIVE_FEED_URL = "https://script.google.com/macros/s/AKfycbzPxZ4ZPgP2yazquQuzQRT36eNjMn9W_zOnPcXMWrDQs6MgRuVSiNtDS8vJx5OZlkZH/exec"; // Pega aquí la URL de tu Apps Script cuando esté preparado.
+const DRIVE_FEED_URL = "https://script.google.com/macros/s/AKfycbyCUZJVOEnNmgojuRtFRv7m90hKyNmbzyqpjnnrizWYXdikCyV_QT2LuAGpPT7M5Bz_/exec"; // Pega aquí la URL de tu Apps Script cuando esté preparado.
 
 function isNightMode() {
   const hour = new Date().getHours();
@@ -30,6 +30,24 @@ let toastTimer;
 const gallery = document.querySelector("#gallery");
 const fileInput = document.querySelector("#fileInput");
 const lightbox = document.querySelector("#lightbox");
+
+// Delegación de eventos ÚNICA para botones de tarjetas
+gallery.addEventListener('click', e => {
+  const btn = e.target.closest('.icon-btn');
+  if (!btn) return;
+  e.stopPropagation(); // no abrir lightbox
+  const card = btn.closest('.photo-card');
+  if (!card) return;
+  const photoId = card.dataset.id;
+  const idx = Number(card.dataset.index);
+  const photo = photos[idx];
+  if (!photo) return;
+  if (btn.dataset.action === 'delete') {
+    deletePhoto(photoId, photoId);
+  } else if (btn.dataset.action === 'rename') {
+    renamePhoto(photoId, photoId, photo.name);
+  }
+});
 
 // Cargar fotos de Drive al iniciar
 async function loadDrivePhotos() {
@@ -141,21 +159,7 @@ function renderGallery() {
     if (img.complete) img.dispatchEvent(new Event("load"));
   });
 
-  // Delegación de eventos para botones dinámicos
-  gallery.addEventListener('click', e => {
-    const btn = e.target.closest('.icon-btn');
-    if (!btn) return;
-    e.stopPropagation(); // no abrir lightbox
-    const card = btn.closest('.photo-card');
-    const photoId = card.dataset.id;
-    const idx = Number(card.dataset.index);
-    const photo = photos[idx];
-    if (btn.dataset.action === 'delete') {
-      deletePhoto(photoId, photoId);
-    } else if (btn.dataset.action === 'rename') {
-      renamePhoto(photoId, photoId, photo.name);
-    }
-  });
+
 
 }
 
@@ -182,8 +186,10 @@ async function addFiles(fileList) {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: 'upload', image: base64, type: file.type, name: file.name })
       });
-      const result = await resp.json();
-      console.log('Upload response:', result);
+      const text = await resp.text();
+      console.log('Upload raw response:', text);
+      let result;
+      try { result = JSON.parse(text); } catch { result = { success: false, error: 'Respuesta inválida del servidor' }; }
       if (result.success) {
         // Guardar base64 local para vista INMEDIATA mientras Drive procesa
         const photoWithPreview = {
@@ -252,15 +258,19 @@ async function deletePhoto(photoId, fileId) {
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'delete', fileId })
     });
-    const result = await resp.json();
+    const text = await resp.text();
+    console.log('Delete raw response:', text);
+    let result;
+    try { result = JSON.parse(text); } catch { result = { success: false, error: 'Respuesta inválida del servidor' }; }
     if (result.success) {
       photos = photos.filter(p => p.id !== photoId);
       showToast('🗑️ Eliminado de Drive');
       renderGallery();
     } else {
-      showToast(`❌ Error: ${result.error}`);
+      showToast(`❌ Error: ${result.error || 'Error desconocido'}`);
     }
   } catch (err) {
+    console.error('Delete error:', err);
     showToast(`❌ Error de red: ${err.message}`);
   }
 }
@@ -287,16 +297,20 @@ async function renamePhoto(photoId, fileId, currentName) {
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'rename', fileId, newName })
     });
-    const result = await resp.json();
+    const text = await resp.text();
+    console.log('Rename raw response:', text);
+    let result;
+    try { result = JSON.parse(text); } catch { result = { success: false, error: 'Respuesta inválida del servidor' }; }
     if (result.success) {
       const idx = photos.findIndex(p => p.id === photoId);
       if (idx !== -1) photos[idx] = result.photo;
       showToast('✏️ Renombrado en Drive');
       renderGallery();
     } else {
-      showToast(`❌ Error: ${result.error}`);
+      showToast(`❌ Error: ${result.error || 'Error desconocido'}`);
     }
   } catch (err) {
+    console.error('Rename error:', err);
     showToast(`❌ Error de red: ${err.message}`);
   }
 }
